@@ -9,6 +9,7 @@
 #include <variant>
 #include <limits>
 #include <cmath> // Добавлен для математических функций
+#include <corecrt_math_defines.h>
 
 // Token Codes
 enum TokenCode
@@ -741,7 +742,7 @@ private:
         parse_E();
     }
 
-    // A → aH = G ; A | if ( C ) begin AX ; A | while ( C ) begin A end ; A | cin (aH) ; A | cout ( G ) ; A | sin ( G ) ; A | cos ( G ) ; A | tg ( G ) ; A | ctg ( G ) ; A | λ
+    // A → aH = G ; A | if ( C ) begin AX ; A | while ( C ) begin A end ; A | cin (aH) ; A | cout ( G ) ; A | λ
     void parse_A()
     {
         Token t = currentToken();
@@ -857,39 +858,8 @@ private:
             expect(SEMICOLON_TOK, "after 'cout' statement");
             parse_A();
         }
-        else if (t.code == SIN_TOK || t.code == COS_TOK || t.code == TG_TOK || t.code == CTG_TOK)
-        {
-            TokenCode func_code = t.code;
-            consumeToken();
-            expect(LPAREN_TOK, "after trigonometric function");
-            parse_G();
-            expect(RPAREN_TOK, "after trigonometric function argument");
-
-            std::string func_name;
-            switch (func_code)
-            {
-            case SIN_TOK:
-                func_name = "sin";
-                break;
-            case COS_TOK:
-                func_name = "cos";
-                break;
-            case TG_TOK:
-                func_name = "tg";
-                break;
-            case CTG_TOK:
-                func_name = "ctg";
-                break;
-            default:
-                throwError("Unknown trigonometric function");
-            }
-
-            m_rpn.emplace_back(RPNItemType::TRIG_FUNCTION, func_name, t.line);
-            expect(SEMICOLON_TOK, "after trigonometric function statement");
-            parse_A();
-        }
-        // λ case: if currentToken() is END_TOK or part of an outer structure (like 'else' which means end of 'if' block's A)
-        // then this rule effectively produces lambda and returns.
+        // Убираем обработку тригонометрических функций как операторов - они теперь только в выражениях
+        // λ case: if currentToken() is END_TOK or part of an outer structure
     }
 
     // G → T U'
@@ -928,7 +898,7 @@ private:
             parse_V_prime();
         }
     }
-    // F → (G) | aH | k
+    // F → (G) | aH | k | sin(G) | cos(G) | tg(G) | ctg(G)
     void parse_F()
     {
         Token t = currentToken();
@@ -964,9 +934,39 @@ private:
             consumeToken();
             m_rpn.emplace_back(RPNItemType::CONST, t.lexeme, t.line);
         }
+        else if (t.code == SIN_TOK || t.code == COS_TOK || t.code == TG_TOK || t.code == CTG_TOK)
+        {
+            // Обработка тригонометрических функций как выражений
+            TokenCode func_code = t.code;
+            consumeToken();
+            expect(LPAREN_TOK, "after trigonometric function");
+            parse_G();
+            expect(RPAREN_TOK, "after trigonometric function argument");
+
+            std::string func_name;
+            switch (func_code)
+            {
+            case SIN_TOK:
+                func_name = "sin";
+                break;
+            case COS_TOK:
+                func_name = "cos";
+                break;
+            case TG_TOK:
+                func_name = "tg";
+                break;
+            case CTG_TOK:
+                func_name = "ctg";
+                break;
+            default:
+                throwError("Unknown trigonometric function");
+            }
+
+            m_rpn.emplace_back(RPNItemType::TRIG_FUNCTION, func_name, t.line);
+        }
         else
         {
-            throwError("Invalid start of factor: expected '(', identifier, or number, got " + t.codeToString());
+            throwError("Invalid start of factor: expected '(', identifier, number, or trigonometric function, got " + t.codeToString());
         }
     }
 
@@ -1417,7 +1417,8 @@ private:
         int int_result = static_cast<int>(std::round(result));
         push_operand(int_result);
 
-        std::cout << "Trigonometric function " << func_name << "(" << arg_val << "°) = " << result << " (rounded to " << int_result << ")" << std::endl;
+        // Убираем вывод отладочной информации при выполнении функции
+        // std::cout << "Trigonometric function " << func_name << "(" << arg_val << "°) = " << result << " (rounded to " << int_result << ")" << std::endl;
     }
 
     size_t find_label(const std::string &label_name, int source_line_for_error)
