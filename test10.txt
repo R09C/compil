@@ -1,0 +1,15 @@
+int i;
+int k;
+int result;
+begin
+  i = 30;
+  k = 45;
+  result = sin(i);
+  cout(result);
+  result = cos(k);
+  cout(result);
+  result = tg(i);
+  cout(result);
+  result = ctg(k);
+  cout(result);
+end
