@@ -898,7 +898,7 @@ private:
             parse_V_prime();
         }
     }
-    // F → (G) | aH | k | sin(G) | cos(G) | tg(G) | ctg(G)
+    // F → (G) | aH | k | sin(G) | cos(G) | tg(G) | ctg(G) | -F
     void parse_F()
     {
         Token t = currentToken();
@@ -964,9 +964,16 @@ private:
 
             m_rpn.emplace_back(RPNItemType::TRIG_FUNCTION, func_name, t.line);
         }
+        else if (t.code == MINUS_TOK)
+        {
+            // Обработка унарного минуса
+            consumeToken();
+            parse_F(); // Рекурсивно парсим следующий фактор
+            m_rpn.emplace_back(RPNItemType::OPERATION, "unary-", t.line);
+        }
         else
         {
-            throwError("Invalid start of factor: expected '(', identifier, number, or trigonometric function, got " + t.codeToString());
+            throwError("Invalid start of factor: expected '(', identifier, number, trigonometric function, or unary minus, got " + t.codeToString());
         }
     }
 
@@ -1258,6 +1265,13 @@ private:
                                          "' (size " + std::to_string(it->second.size()) + ").");
             }
             it->second[index] = value_to_assign;
+        }
+        else if (op == "unary-")
+        {
+            // Обработка унарного минуса
+            StackItem operand_item = pop_operand();
+            int operand = get_int(operand_item, "Operand for unary minus");
+            push_operand(-operand);
         }
         else
         {
