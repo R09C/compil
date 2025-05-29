@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <variant>
 #include <limits>
-#include <cmath> // Для std::sin, std::cos, std::tan, std::abs
+#include <cmath> // Добавлен для математических функций
 
 // Token Codes
 enum TokenCode
@@ -35,8 +35,8 @@ enum TokenCode
     // Trigonometric functions
     SIN_TOK = 274,
     COS_TOK = 275,
-    TG_TOK = 276,  // тангенс
-    CTG_TOK = 277, // котангенс
+    TG_TOK = 276,
+    CTG_TOK = 277,
 
     // Operators and Punctuation
     PLUS_TOK,       // +
@@ -102,14 +102,6 @@ struct Token
             return "BEG_TOK";
         case END_TOK:
             return "END_TOK";
-        case SIN_TOK:
-            return "SIN_TOK";
-        case COS_TOK:
-            return "COS_TOK";
-        case TG_TOK:
-            return "TG_TOK";
-        case CTG_TOK:
-            return "CTG_TOK";
         case PLUS_TOK:
             return "PLUS_TOK";
         case MINUS_TOK:
@@ -146,6 +138,14 @@ struct Token
             return "SPACE_TOK";
         case NEWLINE_TOK:
             return "NEWLINE_TOK";
+        case SIN_TOK:
+            return "SIN_TOK";
+        case COS_TOK:
+            return "COS_TOK";
+        case TG_TOK:
+            return "TG_TOK";
+        case CTG_TOK:
+            return "CTG_TOK";
         default:
             return "UNKNOWN_TOKEN_CODE(" + std::to_string(static_cast<int>(code)) + ")";
         }
@@ -297,7 +297,7 @@ void initialize_lexer_tables()
     // Специально для грамматики:
     keywords["cin"] = INPUT_TOK;
     keywords["cout"] = OUTPUT_TOK;
-    // Новые ключевые слова для тригонометрических функций
+    // Тригонометрические функции:
     keywords["sin"] = SIN_TOK;
     keywords["cos"] = COS_TOK;
     keywords["tg"] = TG_TOK;
@@ -506,10 +506,7 @@ enum class RPNItemType
     ARRAY_ASSIGN,
     INPUT,
     OUTPUT,
-    SIN_OP,
-    COS_OP,
-    TAN_OP,
-    COT_OP // Новые типы для тригонометрических операций
+    TRIG_FUNCTION // Новый тип для тригонометрических функций
 };
 
 struct RPNEntry
@@ -546,14 +543,8 @@ struct RPNEntry
             return "INPUT_OP";
         case RPNItemType::OUTPUT:
             return "OUTPUT_OP";
-        case RPNItemType::SIN_OP:
-            return "SIN_OP";
-        case RPNItemType::COS_OP:
-            return "COS_OP";
-        case RPNItemType::TAN_OP:
-            return "TAN_OP";
-        case RPNItemType::COT_OP:
-            return "COT_OP";
+        case RPNItemType::TRIG_FUNCTION:
+            return "TRIG_FUNCTION";
         default:
             return "UNKNOWN_RPN_TYPE";
         }
@@ -750,7 +741,7 @@ private:
         parse_E();
     }
 
-    // A → aH = G ; A | if ( C ) begin AX ; A | while ( C ) begin A end ; A | cin (aH) ; A | cout ( G ) ; A | λ
+    // A → aH = G ; A | if ( C ) begin AX ; A | while ( C ) begin A end ; A | cin (aH) ; A | cout ( G ) ; A | sin ( G ) ; A | cos ( G ) ; A | tg ( G ) ; A | ctg ( G ) ; A | λ
     void parse_A()
     {
         Token t = currentToken();
@@ -866,44 +857,35 @@ private:
             expect(SEMICOLON_TOK, "after 'cout' statement");
             parse_A();
         }
-        else if (t.code == SIN_TOK)
+        else if (t.code == SIN_TOK || t.code == COS_TOK || t.code == TG_TOK || t.code == CTG_TOK)
         {
-            consumeToken(); // sin
-            expect(LPAREN_TOK, "after 'sin'");
-            parse_G(); // argument
-            expect(RPAREN_TOK, "after 'sin' argument");
-            m_rpn.emplace_back(RPNItemType::SIN_OP, "", t.line);
-            expect(SEMICOLON_TOK, "after 'sin' statement");
-            parse_A();
-        }
-        else if (t.code == COS_TOK)
-        {
-            consumeToken(); // cos
-            expect(LPAREN_TOK, "after 'cos'");
-            parse_G(); // argument
-            expect(RPAREN_TOK, "after 'cos' argument");
-            m_rpn.emplace_back(RPNItemType::COS_OP, "", t.line);
-            expect(SEMICOLON_TOK, "after 'cos' statement");
-            parse_A();
-        }
-        else if (t.code == TG_TOK)
-        {
-            consumeToken(); // tg
-            expect(LPAREN_TOK, "after 'tg'");
-            parse_G(); // argument
-            expect(RPAREN_TOK, "after 'tg' argument");
-            m_rpn.emplace_back(RPNItemType::TAN_OP, "", t.line); // Используем TAN_OP для tg
-            expect(SEMICOLON_TOK, "after 'tg' statement");
-            parse_A();
-        }
-        else if (t.code == CTG_TOK)
-        {
-            consumeToken(); // ctg
-            expect(LPAREN_TOK, "after 'ctg'");
-            parse_G(); // argument
-            expect(RPAREN_TOK, "after 'ctg' argument");
-            m_rpn.emplace_back(RPNItemType::COT_OP, "", t.line); // Используем COT_OP для ctg
-            expect(SEMICOLON_TOK, "after 'ctg' statement");
+            TokenCode func_code = t.code;
+            consumeToken();
+            expect(LPAREN_TOK, "after trigonometric function");
+            parse_G();
+            expect(RPAREN_TOK, "after trigonometric function argument");
+
+            std::string func_name;
+            switch (func_code)
+            {
+            case SIN_TOK:
+                func_name = "sin";
+                break;
+            case COS_TOK:
+                func_name = "cos";
+                break;
+            case TG_TOK:
+                func_name = "tg";
+                break;
+            case CTG_TOK:
+                func_name = "ctg";
+                break;
+            default:
+                throwError("Unknown trigonometric function");
+            }
+
+            m_rpn.emplace_back(RPNItemType::TRIG_FUNCTION, func_name, t.line);
+            expect(SEMICOLON_TOK, "after trigonometric function statement");
             parse_A();
         }
         // λ case: if currentToken() is END_TOK or part of an outer structure (like 'else' which means end of 'if' block's A)
@@ -1144,45 +1126,9 @@ public:
                     handle_output(entry);
                     break;
 
-                case RPNItemType::SIN_OP:
-                {
-                    StackItem arg_item = pop_operand();
-                    double arg_val = static_cast<double>(get_int(arg_item, "Argument for sin"));
-                    push_operand(static_cast<int>(std::sin(arg_val))); // Результат усекается до int
+                case RPNItemType::TRIG_FUNCTION:
+                    handle_trig_function(entry);
                     break;
-                }
-                case RPNItemType::COS_OP:
-                {
-                    StackItem arg_item = pop_operand();
-                    double arg_val = static_cast<double>(get_int(arg_item, "Argument for cos"));
-                    push_operand(static_cast<int>(std::cos(arg_val))); // Результат усекается до int
-                    break;
-                }
-                case RPNItemType::TAN_OP:
-                { // Обработка tg
-                    StackItem arg_item = pop_operand();
-                    double arg_val_rad = static_cast<double>(get_int(arg_item, "Argument for tan (tg)"));
-                    double cos_val = std::cos(arg_val_rad);
-                    if (std::abs(cos_val) < 1e-9)
-                    { // Проверка на близость cos(arg) к нулю
-                        throw std::runtime_error("Division by zero in tan(tg) operation (cos(arg) is near zero).");
-                    }
-                    push_operand(static_cast<int>(std::tan(arg_val_rad))); // Результат усекается до int
-                    break;
-                }
-                case RPNItemType::COT_OP:
-                { // Обработка ctg
-                    StackItem arg_item = pop_operand();
-                    double arg_val_rad = static_cast<double>(get_int(arg_item, "Argument for cot (ctg)"));
-                    double sin_val = std::sin(arg_val_rad);
-                    if (std::abs(sin_val) < 1e-9)
-                    { // Проверка на близость sin(arg) к нулю
-                        throw std::runtime_error("Division by zero in cot(ctg) operation (sin(arg) is near zero).");
-                    }
-                    // cot(x) = cos(x) / sin(x)
-                    push_operand(static_cast<int>(std::cos(arg_val_rad) / sin_val)); // Результат усекается до int
-                    break;
-                }
 
                 default:
                     throw std::runtime_error("Unknown RPN item type: " + entry.typeToString());
@@ -1429,6 +1375,49 @@ private:
         StackItem val_item = pop_operand();
         int val_to_print = get_int(val_item, "Value for output");
         std::cout << "Output: " << val_to_print << std::endl;
+    }
+
+    void handle_trig_function(const RPNEntry &entry)
+    {
+        StackItem arg_item = pop_operand();
+        double arg_val = static_cast<double>(get_int(arg_item, "Argument for trigonometric function '" + entry.value + "'"));
+
+        // Преобразуем градусы в радианы для стандартных функций
+        double arg_radians = arg_val * M_PI / 180.0;
+        double result = 0.0;
+
+        const std::string &func_name = entry.value;
+        if (func_name == "sin")
+        {
+            result = std::sin(arg_radians);
+        }
+        else if (func_name == "cos")
+        {
+            result = std::cos(arg_radians);
+        }
+        else if (func_name == "tg")
+        {
+            result = std::tan(arg_radians);
+        }
+        else if (func_name == "ctg")
+        {
+            double tan_val = std::tan(arg_radians);
+            if (std::abs(tan_val) < 1e-15)
+            {
+                throw std::runtime_error("Cotangent undefined for angle " + std::to_string(arg_val) + " degrees (tan = 0)");
+            }
+            result = 1.0 / tan_val;
+        }
+        else
+        {
+            throw std::runtime_error("Unknown trigonometric function '" + func_name + "'");
+        }
+
+        // Округляем результат до целого числа
+        int int_result = static_cast<int>(std::round(result));
+        push_operand(int_result);
+
+        std::cout << "Trigonometric function " << func_name << "(" << arg_val << "°) = " << result << " (rounded to " << int_result << ")" << std::endl;
     }
 
     size_t find_label(const std::string &label_name, int source_line_for_error)
